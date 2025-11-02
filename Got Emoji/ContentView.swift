@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  Got Emoji
 //
-//  Created by Admin on 10/29/25.
+//  Created by Renaud Montes on 10/29/25.
 //
 
 import SwiftUI
@@ -64,6 +64,15 @@ struct ContentView: View {
                 Label("History", systemImage: "clock.arrow.circlepath")
             }
             .tag(1)
+            
+            // Debug Tab
+            NavigationView {
+                DebugLogView(cloudKitManager: cloudKitManager)
+            }
+            .tabItem {
+                Label("Debug", systemImage: "ladybug")
+            }
+            .tag(2)
         }
         .onReceive(NotificationCenter.default.publisher(for: .cloudKitDataChanged)) { _ in
             print("🔔 ContentView received cloudKitDataChanged notification")

@@ -2,7 +2,7 @@
 //  CloudKitManager.swift
 //  Got Emoji
 //
-//  Created by Admin on 10/29/25.
+//  Created by Renaud Montes on 10/29/25.
 //
 
 import Foundation
@@ -14,22 +14,29 @@ class CloudKitManager: ObservableObject {
     @Published var entries: [EmojiEntry] = []
     @Published var isSyncing = false
     @Published var error: Error?
+    @Published var debugLog: [String] = []
     
     private let container: CKContainer
     private let database: CKDatabase
     private var subscriptionID = "emoji-entries-subscription"
+    
+    private func log(_ message: String) {
+        print(message)
+        debugLog.append("\(Date().formatted(date: .omitted, time: .standard)) - \(message)")
+        // Keep only last 50 logs
+        if debugLog.count > 50 {
+            debugLog.removeFirst()
+        }
+    }
     
     init() {
         self.container = CKContainer(identifier: "iCloud.rens-corp.Got-Emoji")
         // Explicitly force Production environment
         self.database = container.privateCloudDatabase
         
-        #if DEBUG
-        print("🚀 FORCING CloudKit PRODUCTION environment")
-        print("   Container: \(container.containerIdentifier ?? "unknown")")
-        #endif
-        
         Task {
+            log("🚀 FORCING CloudKit PRODUCTION environment")
+            log("   Container: \(container.containerIdentifier ?? "unknown")")
             await verifyCloudKitAvailability()
             await setupSubscription()
             await fetchEntries()
@@ -42,20 +49,20 @@ class CloudKitManager: ObservableObject {
             let status = try await container.accountStatus()
             switch status {
             case .available:
-                print("✅ CloudKit available")
+                log("✅ CloudKit available")
             case .noAccount:
-                print("❌ No iCloud account")
+                log("❌ No iCloud account")
             case .restricted:
-                print("❌ iCloud restricted")
+                log("❌ iCloud restricted")
             case .couldNotDetermine:
-                print("❌ Could not determine iCloud status")
+                log("❌ Could not determine iCloud status")
             case .temporarilyUnavailable:
-                print("⚠️ iCloud temporarily unavailable")
+                log("⚠️ iCloud temporarily unavailable")
             @unknown default:
-                print("❌ Unknown iCloud status")
+                log("❌ Unknown iCloud status")
             }
         } catch {
-            print("Error checking CloudKit availability: \(error.localizedDescription)")
+            log("Error checking CloudKit availability: \(error.localizedDescription)")
         }
     }
     
@@ -67,7 +74,7 @@ class CloudKitManager: ObservableObject {
         do {
             isSyncing = true
             let savedRecord = try await database.save(record)
-            print("✅ Successfully saved record: \(savedRecord.recordID.recordName)")
+            log("✅ Successfully saved record: \(savedRecord.recordID.recordName)")
             
             // Add to local array and sort
             entries.append(entry)
@@ -109,47 +116,54 @@ class CloudKitManager: ObservableObject {
     
     // MARK: - Read
     func fetchEntries() async {
-        print("🔄 Fetching entries from CloudKit...")
+        log("🔄 Fetching entries from CloudKit...")
+        isSyncing = true
         
         do {
-            isSyncing = true
+            // Use the absolute simplest query possible - just fetch all EmojiEntry records
+            let predicate = NSPredicate(value: true) // Fetch everything
+            let query = CKQuery(recordType: "EmojiEntry", predicate: predicate)
             
-            // Use the simplest possible query - no sorting, no options
-            let query = CKQuery(recordType: "EmojiEntry", predicate: NSPredicate(value: true))
+            // Don't sort on server - we'll sort locally
+            // This avoids any index issues
+            
+            let (matchResults, _) = try await database.records(matching: query, inZoneWith: nil)
+            
+            log("📦 CloudKit returned \(matchResults.count) results")
             
             var fetchedEntries: [EmojiEntry] = []
             
-            // Fetch records with the simplest API
-            let results = try await database.records(matching: query)
-            
-            for (_, result) in results.matchResults {
+            for (_, result) in matchResults {
                 switch result {
                 case .success(let record):
                     if let entry = EmojiEntry(record: record) {
                         fetchedEntries.append(entry)
+                        log("  ✅ Parsed: \(entry.emoji) from \(entry.device)")
+                    } else {
+                        log("  ⚠️ Failed to parse record: \(record.recordID)")
                     }
                 case .failure(let error):
-                    print("❌ Failed to fetch record: \(error.localizedDescription)")
+                    log("  ❌ Error fetching individual record: \(error.localizedDescription)")
                 }
             }
             
-            // Sort locally by timestamp
-            self.entries = fetchedEntries.sorted { $0.timestamp > $1.timestamp }
-            print("✅ Fetched \(fetchedEntries.count) entries from CloudKit")
+            // Sort locally by timestamp (newest first)
+            fetchedEntries.sort { $0.timestamp > $1.timestamp }
+            
+            entries = fetchedEntries
+            log("✅ Fetched \(entries.count) entries from CloudKit")
+            
             isSyncing = false
-        } catch let error as CKError {
-            self.error = error
-            isSyncing = false
-            print("❌ CloudKit Error fetching entries:")
-            print("   Code: \(error.code.rawValue)")
-            print("   Description: \(error.localizedDescription)")
-            if let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error {
-                print("   Underlying: \(underlying.localizedDescription)")
-            }
+            
         } catch {
+            log("❌ CloudKit Error fetching entries:")
+            log("   Code: \((error as NSError).code)")
+            log("   Description: \(error.localizedDescription)")
+            if let ckError = error as? CKError {
+                log("   Underlying: \(ckError.errorUserInfo)")
+            }
             self.error = error
             isSyncing = false
-            print("❌ Error fetching entries: \(error.localizedDescription)")
         }
     }
     
@@ -178,11 +192,11 @@ class CloudKitManager: ObservableObject {
         do {
             let existingSubscriptions = try await database.allSubscriptions()
             if existingSubscriptions.contains(where: { $0.subscriptionID == subscriptionID }) {
-                print("Subscription already exists")
+                log("Subscription already exists")
                 return
             }
         } catch {
-            print("Error checking subscriptions: \(error.localizedDescription)")
+            log("Error checking subscriptions: \(error.localizedDescription)")
         }
         
         // Create new subscription
@@ -200,15 +214,15 @@ class CloudKitManager: ObservableObject {
         
         do {
             _ = try await database.save(subscription)
-            print("Subscription created successfully")
+            log("Subscription created successfully")
         } catch {
-            print("Error creating subscription: \(error.localizedDescription)")
+            log("Error creating subscription: \(error.localizedDescription)")
         }
     }
     
     // Handle remote notifications
     func handleRemoteNotification() async {
-        print("📲 Handling remote notification - fetching updated data...")
+        log("📲 Handling remote notification - fetching updated data...")
         await fetchEntries()
     }
     

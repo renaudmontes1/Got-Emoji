@@ -2,7 +2,7 @@
 //  Got_EmojiApp.swift
 //  Got Emoji Watch App
 //
-//  Created by Admin on 10/29/25.
+//  Created by Renaud Montes on 10/29/25.
 //
 
 import SwiftUI

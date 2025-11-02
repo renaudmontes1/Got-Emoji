@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  Got Emoji Watch App
 //
-//  Created by Admin on 10/29/25.
+//  Created by Renaud Montes on 10/29/25.
 //
 
 import SwiftUI
@@ -34,6 +34,17 @@ struct ContentView: View {
                             HStack {
                                 Image(systemName: "clock.arrow.circlepath")
                                 Text("History")
+                            }
+                            .font(.caption)
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.bordered)
+                        
+                        // Debug Button
+                        NavigationLink(destination: DebugLogView(cloudKitManager: cloudKitManager)) {
+                            HStack {
+                                Image(systemName: "ladybug")
+                                Text("Debug")
                             }
                             .font(.caption)
                             .padding(.vertical, 8)

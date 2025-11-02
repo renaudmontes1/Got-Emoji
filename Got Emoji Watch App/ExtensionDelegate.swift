@@ -2,7 +2,7 @@
 //  ExtensionDelegate.swift
 //  Got Emoji Watch App
 //
-//  Created by Admin on 10/30/25.
+//  Created by Renaud Montes on 10/30/25.
 //
 
 import WatchKit

@@ -2,7 +2,7 @@
 //  EmojiEntry.swift
 //  Got Emoji
 //
-//  Created by Admin on 10/29/25.
+//  Created by Renaud Montes on 10/29/25.
 //
 
 import Foundation
@@ -36,7 +36,10 @@ struct EmojiEntry: Identifiable, Codable {
     }
     
     func toCKRecord() -> CKRecord {
-        let record = CKRecord(recordType: "EmojiEntry", recordID: CKRecord.ID(recordName: id))
+        // Explicitly create record in default zone
+        let zoneID = CKRecordZone.default().zoneID
+        let recordID = CKRecord.ID(recordName: id, zoneID: zoneID)
+        let record = CKRecord(recordType: "EmojiEntry", recordID: recordID)
         record["emoji"] = emoji as CKRecordValue
         record["timestamp"] = timestamp as CKRecordValue
         record["device"] = device as CKRecordValue
